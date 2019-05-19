@@ -5,3 +5,4 @@ authors = ["Attenuation <ouyangjun1999@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+libc = "0.2.55"
