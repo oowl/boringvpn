@@ -1,0 +1,7 @@
+[package]
+name = "boringvpn"
+version = "0.1.0"
+authors = ["Attenuation <ouyangjun1999@gmail.com>"]
+edition = "2018"
+
+[dependencies]
