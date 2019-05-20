@@ -3,7 +3,11 @@ name = "boringvpn"
 version = "0.1.0"
 authors = ["Attenuation <ouyangjun1999@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 libc = "0.2.55"
 serde = "1.0.91"
+
+[build-dependencies]
+cc = "1.0"
