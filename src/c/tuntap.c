@@ -64,33 +64,6 @@ int32_t up_device(char *name) {
     return 1;
 }
 
-int32_t set_route(char *dst_ip, char *mask,char *gateway_addr) {
-    struct rtentry route;
-    struct sockaddr_in *addr;
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd == -1){
-      perror("socket creation failed\n");
-      return -1;
-    }
-    int err = 0;
-    memset(&route, 0, sizeof(route));
-    addr = (struct sockaddr_in*) &route.rt_gateway;
-    addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = inet_addr(gateway_addr);
-    addr = (struct sockaddr_in*) &route.rt_dst;
-    addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = inet_addr(dst_ip);
-    addr = (struct sockaddr_in*) &route.rt_genmask;
-    addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = inet_addr(mask);
-    route.rt_flags = RTF_UP | RTF_GATEWAY;
-    route.rt_metric = 100;
-    err = ioctl(sockfd, SIOCADDRT, &route);
-    if ((err) < 0) {
-        return -1;
-    }
-    return 1;
-}
 
 
 int32_t set_ip(char *name,char *ip_addr,char *netmask) {
@@ -141,10 +114,6 @@ int32_t set_ip(char *name,char *ip_addr,char *netmask) {
 //     }
 //     if (set_ip(dev,"192.168.1.2","255.255.255.0") < 0){
 //         printf("set_ip failed\n");
-//         return -1;
-//     }
-//     if (set_route(dev,"192.168.2.0","255.255.255.0","192.168.1.1") < 0) {
-//         printf("set route failed\n");
 //         return -1;
 //     }
 //     sleep(10);

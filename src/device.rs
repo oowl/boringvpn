@@ -15,7 +15,6 @@ extern {
     fn setup_tap_device(fd: i32, ifname: *mut u8) -> i32;
     fn setup_tun_device(fd: i32, ifname: *mut u8) -> i32;
     fn up_device(ifname: *mut u8) -> i32;
-    fn set_route(dst: *const c_char,mask: *const c_char,gateway_addr: *const c_char) -> i32;
     fn set_ip(ifname: *mut u8,ip: *const c_char,netmask: *const c_char) -> i32;
 }
 
@@ -79,24 +78,10 @@ impl Tuntap {
         let err = unsafe {
             set_ip(ifname.as_mut_ptr(), ip_addr.as_ptr(), netmask.as_ptr())
         };
-        dbg!(err);
         match err {
             1 => Ok(()),
             _ => Err(io::Error::last_os_error())
         }
-    }
-}
-
-pub fn ip_route(dst: &str,mask: &str,gateway_addr: &str) -> Result<(),io::Error>{
-    let dst = CString::new(dst).expect("Cstring failed");
-    let netmask = CString::new(mask).expect("Cstring failed");
-    let gateway_addr = CString::new(gateway_addr).expect("Cstring failed");
-    let err = unsafe {
-        set_route(dst.as_ptr(),netmask.as_ptr(),gateway_addr.as_ptr())
-    };
-    match err {
-        1 => Ok(()),
-        _ => Err(io::Error::last_os_error())
     }
 }
 
