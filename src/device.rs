@@ -52,7 +52,7 @@ impl Tuntap {
             _ => Err(io::Error::last_os_error())
         }
     }
-    pub fn ifname(&mut self) -> String {
+    pub fn ifname(&self) -> String {
         self.if_name.clone()
     }
     pub fn up(&self) -> Result<(),io::Error>{
@@ -121,3 +121,38 @@ impl Write for Tuntap {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::device::*;
+    use crate::utils::*;
+    use std::process;
+    #[test]
+    fn create_tun_test() {
+        assert!(is_root());
+        let tun = Tuntap::create("tun1", Type::Tun, None).unwrap();
+        let name = tun.if_name;
+        let output = process::Command::new("ifconfig")
+            .arg(name)
+            .output()
+            .expect("failed to create tun device");
+        assert!(output.status.success());
+    }
+    #[test]
+    fn set_ip_test() {
+        assert!(is_root());
+        let tun = Tuntap::create("tun2", Type::Tun, None).unwrap();
+        let ip = format!("{}","192.168.144.1");
+        let mut buf_ip = [0u8;13];
+        buf_ip[0..ip.len()].clone_from_slice(ip.as_bytes());
+        let netmask = format!("{}","255.255.255.0");
+        let mut buf_netmask = [0u8;13];
+        buf_netmask[0..netmask.len()].clone_from_slice(netmask.as_bytes());
+        tun.set_ip(&mut buf_ip,&mut buf_netmask).unwrap();
+        let name = tun.ifname();
+        let output = process::Command::new("ifconfig")
+            .arg(name)
+            .output()
+            .expect("failed to create tun device");
+        println!("{:?}", output.stdout);
+    }
+}
