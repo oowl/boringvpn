@@ -4,7 +4,7 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-
+use std::io::{Write, Read};
 
 const IFNAMESIZE: usize = 16;
 
@@ -21,12 +21,6 @@ extern {
 pub enum Type {
     Tun,
     Tap
-}
-
-pub trait Device: AsRawFd {
-    fn get_ifname(&self) -> &str;
-    fn read(&mut self,buf: &mut [u8]) -> Result<usize,io::Error>;
-    fn write(&mut self,buf: &mut [u8]) -> Result<usize,io::Error>;
 }
 
 pub struct Tuntap {
@@ -57,6 +51,9 @@ impl Tuntap {
             },
             _ => Err(io::Error::last_os_error())
         }
+    }
+    pub fn ifname(&mut self) -> String {
+        self.if_name.clone()
     }
     pub fn up(&self) -> Result<(),io::Error>{
         let name = format!("{}",self.if_name);
@@ -100,3 +97,27 @@ pub fn ip_route(ifname: &mut [u8],dst: &mut [u8],mask: &mut [u8],gateway_addr: &
         _ => Err(io::Error::last_os_error())
     }
 }
+
+
+impl AsRawFd for Tuntap {
+    #[inline]
+    fn as_raw_fd(&self) -> RawFd {
+        self.if_fs.as_raw_fd()
+    }
+}
+
+impl Read for Tuntap {
+    fn read(&mut self,buf: &mut [u8]) -> Result<usize,io::Error> {
+        self.if_fs.read(buf)
+    }
+}
+
+impl Write for Tuntap {
+    fn write(&mut self,buf: &[u8]) -> Result<usize,io::Error> {
+        self.if_fs.write(buf)
+    }
+    fn flush(&mut self) -> Result<(),io::Error> {
+        self.if_fs.flush()
+    }
+}
+
