@@ -64,7 +64,7 @@ int32_t up_device(char *name) {
     return 1;
 }
 
-int32_t set_route(char *dev,char *dst_ip, char *mask,char *gateway_addr) {
+int32_t set_route(char *dst_ip, char *mask,char *gateway_addr) {
     struct rtentry route;
     struct sockaddr_in *addr;
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -85,7 +85,6 @@ int32_t set_route(char *dev,char *dst_ip, char *mask,char *gateway_addr) {
     addr->sin_addr.s_addr = inet_addr(mask);
     route.rt_flags = RTF_UP | RTF_GATEWAY;
     route.rt_metric = 100;
-    route.rt_dev = dev;
     err = ioctl(sockfd, SIOCADDRT, &route);
     if ((err) < 0) {
         return -1;
@@ -96,6 +95,8 @@ int32_t set_route(char *dev,char *dst_ip, char *mask,char *gateway_addr) {
 
 int32_t set_ip(char *name,char *ip_addr,char *netmask) {
     up_device(name);
+    printf(ip_addr);
+    printf(netmask);
     int sockfd;
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -104,17 +105,22 @@ int32_t set_ip(char *name,char *ip_addr,char *netmask) {
     }
     struct ifreq ifr;
     struct sockaddr_in sin;
+    strncpy(ifr.ifr_name, name, IFNAMSIZ);
+    if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) < 0) {
+        return -4;
+    }
     sin.sin_family = AF_INET;
     inet_aton(ip_addr,&sin.sin_addr.s_addr);
     memcpy(&ifr.ifr_addr, &sin, sizeof(struct sockaddr)); 
     if (ioctl(sockfd, SIOCSIFADDR, &ifr) < 0) {
-        return -1;
+        return -2;
     }
     inet_aton(netmask,&sin.sin_addr.s_addr);
     memcpy(&ifr.ifr_netmask, &sin, sizeof(struct sockaddr)); 
     if (ioctl(sockfd, SIOCSIFNETMASK, &ifr) < 0) {
-        return -1;
+        return -3;
     }
+    return 1;
 }
 
 // int main() {

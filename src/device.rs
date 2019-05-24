@@ -5,6 +5,8 @@ use std::path;
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::io::{Write, Read};
+use std::ffi::CString;
+use std::os::raw::c_char;
 
 const IFNAMESIZE: usize = 16;
 
@@ -13,8 +15,8 @@ extern {
     fn setup_tap_device(fd: i32, ifname: *mut u8) -> i32;
     fn setup_tun_device(fd: i32, ifname: *mut u8) -> i32;
     fn up_device(ifname: *mut u8) -> i32;
-    fn set_route(ifname: *mut u8,dst: *mut u8,mask: *mut u8,gateway_addr: *mut u8) -> i32;
-    fn set_ip(ifname: *mut u8,ip: *mut u8,netmask: *mut u8) -> i32;
+    fn set_route(dst: *const c_char,mask: *const c_char,gateway_addr: *const c_char) -> i32;
+    fn set_ip(ifname: *mut u8,ip: *const c_char,netmask: *const c_char) -> i32;
 }
 
 // #[derive(Serialize, Deserialize, Debug)]
@@ -67,16 +69,17 @@ impl Tuntap {
             _ => Err(io::Error::last_os_error())
         }
     }
-    pub fn set_ip(&self,ip: &mut [u8],netmask: &mut [u8]) -> Result<(),io::Error>{
+    pub fn set_ip(&self,ip: &str,netmask: &str) -> Result<(),io::Error>{
         let name = format!("{}",self.if_name);
         let mut buf = [0u8;IFNAMESIZE];
         buf[0..name.len()].clone_from_slice(name.as_bytes());
-        let ifname = buf.as_mut_ptr();
-        let ip_addr = ip.as_mut_ptr();
-        let netmask = netmask.as_mut_ptr();
+        let mut ifname = buf;
+        let ip_addr = CString::new(ip).expect("Cstring failed");
+        let netmask = CString::new(netmask).expect("Cstring failed");
         let err = unsafe {
-            set_ip(ifname, ip_addr, netmask)
+            set_ip(ifname.as_mut_ptr(), ip_addr.as_ptr(), netmask.as_ptr())
         };
+        dbg!(err);
         match err {
             1 => Ok(()),
             _ => Err(io::Error::last_os_error())
@@ -84,13 +87,12 @@ impl Tuntap {
     }
 }
 
-pub fn ip_route(ifname: &mut [u8],dst: &mut [u8],mask: &mut [u8],gateway_addr: &mut [u8]) -> Result<(),io::Error>{
-    let ifname = ifname.as_mut_ptr();
-    let dst = dst.as_mut_ptr();
-    let netmask = mask.as_mut_ptr();
-    let gateway_addr = gateway_addr.as_mut_ptr();
+pub fn ip_route(dst: &str,mask: &str,gateway_addr: &str) -> Result<(),io::Error>{
+    let dst = CString::new(dst).expect("Cstring failed");
+    let netmask = CString::new(mask).expect("Cstring failed");
+    let gateway_addr = CString::new(gateway_addr).expect("Cstring failed");
     let err = unsafe {
-        set_route(ifname, dst,netmask,gateway_addr)
+        set_route(dst.as_ptr(),netmask.as_ptr(),gateway_addr.as_ptr())
     };
     match err {
         1 => Ok(()),
@@ -126,6 +128,7 @@ mod tests {
     use crate::device::*;
     use crate::utils::*;
     use std::process;
+    use std::{thread, time};
     #[test]
     fn create_tun_test() {
         assert!(is_root());
@@ -141,18 +144,15 @@ mod tests {
     fn set_ip_test() {
         assert!(is_root());
         let tun = Tuntap::create("tun2", Type::Tun, None).unwrap();
-        let ip = format!("{}","192.168.144.1");
-        let mut buf_ip = [0u8;13];
-        buf_ip[0..ip.len()].clone_from_slice(ip.as_bytes());
+        let ip = format!("{}","192.168.1.2");
         let netmask = format!("{}","255.255.255.0");
-        let mut buf_netmask = [0u8;13];
-        buf_netmask[0..netmask.len()].clone_from_slice(netmask.as_bytes());
-        tun.set_ip(&mut buf_ip,&mut buf_netmask).unwrap();
+        tun.set_ip(&ip,&netmask).unwrap();
         let name = tun.ifname();
         let output = process::Command::new("ifconfig")
             .arg(name)
             .output()
             .expect("failed to create tun device");
-        println!("{:?}", output.stdout);
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("192.168.1.2"));
     }
 }
