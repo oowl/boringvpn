@@ -1,9 +1,10 @@
 use std::fmt;
 use std::io::{self, Write};
+use std::net::AddrParseError;
 
 #[derive(Debug)]
 pub enum Error {
-    Parse(&'static str),
+    Parse(&'static str,io::AddrParseError),
     Socket(&'static str, io::Error),
     Name(String),
     TunTapDev(&'static str, io::Error),
@@ -17,7 +18,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Error::Parse(msg) => write!(formatter, "{}", msg),
+            Error::Parse(msg,ref err) => write!(formatter, "{}: {:?}", msg, err),
             Error::Socket(msg, ref err) => write!(formatter, "{}: {:?}", msg, err),
             Error::TunTapDev(msg, ref err) => write!(formatter, "{}: {:?}", msg, err),
             Error::Crypto(msg) => write!(formatter, "{}", msg),

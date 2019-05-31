@@ -9,6 +9,7 @@ use crate::device;
 use crate::utils;
 use crate::boring;
 use crate::crypto::{Crypto,CryptoData,CryptoMethod};
+use crate::types::Error;
 
 type Token = u64;
 
@@ -37,13 +38,13 @@ impl Client {
         }
     }
 
-    fn parse_ip(&mut self,ipaddr: &str) -> Result<(),io::Error>{
-        self.ip = ipaddr.parse().expect("failed to parse ipaddr from string");
+    fn parse_ip(&mut self,ipaddr: &str) -> Result<(),Error>{
+        self.ip = ipaddr.parse().map_err(|e| Error::Parse("failed to parse ipaddr from string",e))?;
         Ok(())
     }
 
-    fn parse_netmask(&mut self,netmask: &str) -> Result<(),io::Error>{
-        self.netmask = netmask.parse().expect("failed to parse netmask from string");
+    fn parse_netmask(&mut self,netmask: &str) -> Result<(),Error>{
+        self.netmask = netmask.parse().map_err(|e| Error::Parse("failed to parse netmask from string",e))?;
         Ok(())
     }
 
@@ -52,8 +53,8 @@ impl Client {
         self.token = token
     }
 
-    fn parse_dns(&mut self,dns: &str) -> Result<(),io::Error>{
-        self.dns = dns.parse().expect("failed to parse ipaddr from string");
+    fn parse_dns(&mut self,dns: &str) -> Result<(),Error>{
+        self.dns = dns.parse().map_err(|e| Error::Parse("failed to parse dns from string",e))?;
         Ok(())
     }
 
@@ -68,22 +69,42 @@ impl Client {
         Ok(())
     }
 
-    pub fn shakehand_udp(socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(IpAddr,Token,String), String> {
+    pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(), Error> {
         let request_msg = boring::Message::Request {msg: "hello".to_string() };
         let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, secret);
         let receiver = Crypto::from_shared_key(CryptoMethod::AES256, secret);
         let mut nonce = [0u8; 12];
-        let encoded_req_msg: Vec<u8> = serialize(&request_msg).map_err(|e| e.to_string())?;
+        let encoded_req_msg: Vec<u8> = serialize(&request_msg).unwrap();
         let mut encrypted_req_msg = encoded_req_msg.clone();
         encrypted_req_msg.resize(encrypted_req_msg.len() + sender.additional_bytes(), 0);
         let add = [0u8; 8];
-        let size = sender.encrypt(&mut encrypted_req_msg, encoded_req_msg.len(), &mut nonce, &add);
+        let mut size = sender.encrypt(&mut encrypted_req_msg, encoded_req_msg.len(), &mut nonce, &add);
 
         while size > 0 {
-        let sent_bytes = socket.send_to(&encrypted_req_msg, addr)
-            .map_err(|e| e.to_string())?;
+            let sent_bytes = socket.send_to(&encrypted_req_msg, addr).map_err(|e| Error::Shakehand("failed send handshake",e))?;
             size -= sent_bytes;
         }
         info!("Request sent to {}.", addr);
+        let mut buf = [0u8; 1600];
+        let (len, recv_addr) = socket.recv_from(&mut buf).map_err(|e| Error::Shakehand("failed recv_from shakehand",e))?;
+        assert_eq!(&recv_addr, addr);
+        info!("Response received from {}.", addr);
+
+        let decrypted_buf_len = receiver.decrypt(&mut buf[..len], &nonce, &add).map_err(|e| e)?;
+        let resp_msg: boring::Message = deserialize(&buf[..decrypted_buf_len]).unwrap();
+        match resp_msg {
+            boring::Message::Response { ip, netmask,token, dns } => {
+                self.parse_dns(&dns)?;
+                self.parse_ip(&ip)?;
+                self.set_token(token);
+                self.parse_netmask(&netmask)?;
+                Ok(())
+            },
+            _ => Err(
+                Error::Invaildmessage("error shakehand message")
+            ),
+        }   
     }
+
+    pub 
 }
