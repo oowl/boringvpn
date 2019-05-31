@@ -1,6 +1,6 @@
 use bincode;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
-use std::io;
+use std::io::{self,Write,Read};
 use dns_lookup;
 use log::*;
 use bincode::{serialize, deserialize};
@@ -21,8 +21,6 @@ pub struct Client {
     netmask: IpAddr,
     token: Token,
     dns: IpAddr,
-    sender: Option<Crypto>,
-    received: Option<Crypto>
 }
 
 
@@ -38,8 +36,6 @@ impl Client {
             netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
             token: 0,
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
-            sender: None,
-            received: None
         }
     }
 
@@ -74,7 +70,7 @@ impl Client {
         Ok(tun)
     }
 
-    pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(), Error> {
+    pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(Crypto,Crypto), Error> {
         let request_msg = boring::Message::Request {msg: "hello".to_string() };
         let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, secret);
         let receiver = Crypto::from_shared_key(CryptoMethod::AES256, secret);
@@ -97,15 +93,13 @@ impl Client {
 
         let decrypted_buf_len = receiver.decrypt(&mut buf[..len], &nonce, &add).map_err(|e| e)?;
         let resp_msg: boring::Message = deserialize(&buf[..decrypted_buf_len]).unwrap();
-        self.sender = Some(sender);
-        self.received = Some(receiver);
         match resp_msg {
             boring::Message::Response { ip, netmask,token, dns } => {
-                self.parse_dns(&dns)?;
-                self.parse_ip(&ip)?;
+                self.ip = ip;
+                self.netmask = netmask;
                 self.set_token(token);
-                self.parse_netmask(&netmask)?;
-                Ok(())
+                self.dns = dns;
+                Ok((sender,receiver))
             },
             _ => Err(
                 Error::Invaildmessage("error shakehand message")
@@ -125,18 +119,20 @@ impl Client {
 
         let local_addr: SocketAddr = "0.0.0.0:0".parse::<SocketAddr>().unwrap();
         let socket = UdpSocket::bind(&local_addr).unwrap();
-        self.shakehand_udp(&socket, &remote_addr, securt).unwrap();
+        let (mut sender,receiver) = self.shakehand_udp(&socket, &remote_addr, securt).unwrap();
         info!("shakehand sucess token: {}, ip address: {}",self.token,self.ip.to_string());
         info!("start create tun device");
-        self.create_tun().unwrap();
+        let mut tun = self.create_tun().unwrap();
         info!("tun device create successful,set ip: {} netmask: {}",self.ip.to_string(),self.netmask.to_string());
-        let tun = self.tun.unwrap();
-        self.tun.unwrap().up().unwrap();
-        let tun_rawfd = self.tun.unwrap().as_raw_fd();
+        tun.up().unwrap();
+        let tun_rawfd = tun.as_raw_fd();
+
+        let mut buf = [0u8; 1600];
+        let mut nonce = [0u8; 12];
+        let add = [0u8; 8];
 
         let tunfd = mio::unix::EventedFd(&tun_rawfd);
         let sockfd = mio::net::UdpSocket::from_socket(socket).unwrap();
-        let sender = self.sender.unwrap();
 
         info!("start polling...");
         const TUN_TOKEN: mio::Token = mio::Token(0);
@@ -151,10 +147,51 @@ impl Client {
         loop {
             poll.poll(&mut events, None).expect("poll failed");
             for event in events.iter() {
-                unimplemented!()
+                match event.token() {
+                    SOCK_TOKEN => {
+                        let (len,address) = sockfd.recv_from(&mut buf).unwrap();
+                        let decrypted_buf_len = receiver.decrypt(&mut buf[..len], &nonce, &add).unwrap();
+                        let msg: boring::Message = deserialize(&buf[..decrypted_buf_len]).unwrap();
+                        match msg {
+                            boring::Message::Request{msg: _} | boring::Message::Response{ip: _,netmask: _,token: _,dns: _} => {
+                                warn!("Invalid message {:?} from {}", msg, address);
+                            },
+                            boring::Message::Data {ip: _,token: recv_token, data} => {
+                                if self.token == recv_token {
+                                    let data_len = data.len();
+                                    let mut sent_len = 0;
+                                    while sent_len < data_len {
+                                        sent_len += tun.write(&data[sent_len..data_len]).unwrap();
+                                    }
+                                } else {
+                                    warn!("Token mismatched. Received: {}. Expected: {}",recv_token,self.token);
+                                }
+                            }
+                        }
+                    },
+                    TUN_TOKEN => {
+                        let len: usize = tun.read(&mut buf).unwrap();
+                        let data = &buf[..len];
+                        let msg = boring::Message::Data {
+                            ip: self.ip,
+                            token: self.token,
+                            data: data.to_vec()
+                        };
+                        let encoded_data = serialize(&msg).unwrap();
+                        let mut encrypted_msg = encoded_data.clone();
+                        encrypted_msg.resize(encrypted_msg.len() + sender.additional_bytes(), 0);
+                        let add = [0u8; 8];
+                        let data_len = sender.encrypt(&mut encrypted_msg, encoded_data.len(), &mut nonce, &add);
+                        let mut sent_len = 0;
+                        while sent_len < data_len {
+                            sent_len += sockfd.send_to(&encrypted_msg[sent_len..data_len], &remote_addr).unwrap();
+                        }
+
+                    }
+                    _ => unreachable!()
+                }
             }
         }
         Ok(())
-
     }
 }
