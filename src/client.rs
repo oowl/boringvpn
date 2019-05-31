@@ -194,4 +194,8 @@ impl Client {
         }
         Ok(())
     }
+
+    pub fn connect_tcp() {
+        unimplemented!()
+    }
 }
