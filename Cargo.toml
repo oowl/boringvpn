@@ -12,6 +12,7 @@ log = "0.4.6"
 ring = "0.14.6"
 bincode = "1.1.4"
 dns-lookup = "*"
+mio = "*"
 
 [build-dependencies]
 cc = "1.0"

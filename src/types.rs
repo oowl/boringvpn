@@ -4,7 +4,7 @@ use std::net::AddrParseError;
 
 #[derive(Debug)]
 pub enum Error {
-    Parse(&'static str,io::AddrParseError),
+    Parse(&'static str,AddrParseError),
     Socket(&'static str, io::Error),
     Name(String),
     TunTapDev(&'static str, io::Error),

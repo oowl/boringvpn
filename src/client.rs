@@ -4,6 +4,9 @@ use std::io;
 use dns_lookup;
 use log::*;
 use bincode::{serialize, deserialize};
+use std::os::unix::io::AsRawFd;
+use mio;
+
 
 use crate::device;
 use crate::utils;
@@ -18,7 +21,8 @@ pub struct Client {
     netmask: IpAddr,
     token: Token,
     dns: IpAddr,
-    tun: Option<device::Tuntap>
+    sender: Option<Crypto>,
+    received: Option<Crypto>
 }
 
 
@@ -34,7 +38,8 @@ impl Client {
             netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
             token: 0,
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
-            tun: None
+            sender: None,
+            received: None
         }
     }
 
@@ -58,15 +63,15 @@ impl Client {
         Ok(())
     }
 
-    pub fn create_tun(&mut self, ipaddr: &str,netmask: &str,dns: &str) -> Result<(),io::Error>{
+    pub fn create_tun(&mut self) -> Result<device::Tuntap,io::Error>{
         let tun = device::Tuntap::create("tun1", device::Type::Tun, None).expect("failed to create tun");
-        self.parse_ip(ipaddr).unwrap();
-        self.parse_dns(dns).unwrap();
-        self.parse_netmask(netmask).unwrap();
-        self.parse_dns(dns).expect("parse dns failed");
+        // self.parse_ip(ipaddr).unwrap();
+        // self.parse_dns(dns).unwrap();
+        // self.parse_netmask(netmask).unwrap();
+        // self.parse_dns(dns).expect("parse dns failed");
         tun.set_ip(&self.ip.to_string(),&self.netmask.to_string()).expect("failed to set ip to tun device");
         utils::set_dns(&self.dns.to_string()).expect("set dns failed");
-        Ok(())
+        Ok(tun)
     }
 
     pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(), Error> {
@@ -92,6 +97,8 @@ impl Client {
 
         let decrypted_buf_len = receiver.decrypt(&mut buf[..len], &nonce, &add).map_err(|e| e)?;
         let resp_msg: boring::Message = deserialize(&buf[..decrypted_buf_len]).unwrap();
+        self.sender = Some(sender);
+        self.received = Some(receiver);
         match resp_msg {
             boring::Message::Response { ip, netmask,token, dns } => {
                 self.parse_dns(&dns)?;
@@ -106,5 +113,48 @@ impl Client {
         }   
     }
 
-    pub 
+    pub fn shakehand_tcp() {
+        unimplemented!()
+    }
+
+    pub fn connect_udp(&mut self,host: &str,port: u16,securt: &str,default_route: bool) -> Result<(),Error> {
+        info!("start connect server");
+        let remote_ip = resolve(host).unwrap();
+        let remote_addr = SocketAddr::new(remote_ip, port);
+        info!("remote addr and port is {}:{}",remote_ip,port);
+
+        let local_addr: SocketAddr = "0.0.0.0:0".parse::<SocketAddr>().unwrap();
+        let socket = UdpSocket::bind(&local_addr).unwrap();
+        self.shakehand_udp(&socket, &remote_addr, securt).unwrap();
+        info!("shakehand sucess token: {}, ip address: {}",self.token,self.ip.to_string());
+        info!("start create tun device");
+        self.create_tun().unwrap();
+        info!("tun device create successful,set ip: {} netmask: {}",self.ip.to_string(),self.netmask.to_string());
+        let tun = self.tun.unwrap();
+        self.tun.unwrap().up().unwrap();
+        let tun_rawfd = self.tun.unwrap().as_raw_fd();
+
+        let tunfd = mio::unix::EventedFd(&tun_rawfd);
+        let sockfd = mio::net::UdpSocket::from_socket(socket).unwrap();
+        let sender = self.sender.unwrap();
+
+        info!("start polling...");
+        const TUN_TOKEN: mio::Token = mio::Token(0);
+        const SOCK_TOKEN: mio::Token = mio::Token(1);
+        let poll = mio::Poll::new().unwrap();
+        poll.register(&tunfd, TUN_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).expect("unable register TUN fd");
+        poll.register(&sockfd, SOCK_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).expect("unable register SOCK fd");
+
+        let mut events = mio::Events::with_capacity(1024);
+        info!("ready transmission");
+
+        loop {
+            poll.poll(&mut events, None).expect("poll failed");
+            for event in events.iter() {
+                unimplemented!()
+            }
+        }
+        Ok(())
+
+    }
 }

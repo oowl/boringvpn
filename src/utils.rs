@@ -146,7 +146,7 @@ pub fn get_public_ip() -> Result<String, String> {
 
 pub fn set_dns(dns: &str) -> Result<String,String> {
     let cmd = format!("echo nameserver {} > /etc/resolv.conf",dns);
-    let output = Command::new("bash")
+    let output = process::Command::new("bash")
         .arg("-c")
         .arg(cmd)
         .output()
