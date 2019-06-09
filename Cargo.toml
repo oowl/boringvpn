@@ -13,6 +13,9 @@ ring = "0.14.6"
 bincode = "1.1.4"
 dns-lookup = "*"
 mio = "*"
+rand ="*"
+transient-hashmap = "*"
+
 
 [build-dependencies]
 cc = "1.0"
