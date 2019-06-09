@@ -21,6 +21,8 @@ pub struct Server {
     ip: IpAddr,
     netmask: IpAddr,
     dns: IpAddr,
+    host: IpAddr,
+    secret: String,
     port: u16
 } 
 
@@ -30,6 +32,8 @@ impl Server {
             ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
             netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
+            host: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            secret: String::new(),
             port: 0 as u16
         }
     }
@@ -49,6 +53,10 @@ impl Server {
         Ok(())
     }
 
+    fn parse_host(&mut self,host: &str) -> Result<(),Error>{
+        self.dns = host.parse().map_err(|e| Error::Parse("failed to parse dns from string",e))?;
+        Ok(())
+    }
     pub fn create_tun(&mut self) -> Result<device::Tuntap,io::Error>{
         let tun = device::Tuntap::create("tun1", device::Type::Tun, None).expect("failed to create tun");
         // self.parse_ip(ipaddr).unwrap();
@@ -59,12 +67,9 @@ impl Server {
         utils::set_dns(&self.dns.to_string()).expect("set dns failed");
         Ok(tun)
     }
-    pub fn server_udp(&mut self,host: &str,netmask: &str,bind: &str,port: u16,secret: &str) {
+    pub fn server_udp(&mut self) {
         info!("start server");
-        self.parse_ip(host).unwrap();
-        self.parse_netmask(netmask).unwrap();
-        self.port = port;
-        info!("server {}:{}",host,port);
+        info!("server {}:{}",self.host.to_string(),self.port.to_string());
         info!("Enabling kernel's IPv4 forwarding.");
         utils::enable_ipv4_forwarding().unwrap();
 
@@ -77,9 +82,9 @@ impl Server {
         let tunfd = mio::unix::EventedFd(&tun_raw_fd);
         info!("TUN device {} initialized. Internal IP: {} {}.",self.ip,self.netmask,tun.ifname());
 
-        let addr = format!("0.0.0.0:{}", port).parse().unwrap();
+        let addr = format!("0.0.0.0:{}", self.port.to_string()).parse().unwrap();
         let sockfd = mio::net::UdpSocket::bind(&addr).unwrap();
-        info!("Listening on: 0.0.0.0:{}.", port);
+        info!("Listening on: 0.0.0.0:{}.", self.port);
 
         let poll = mio::Poll::new().unwrap();
         const TUN_TOKEN: mio::Token = mio::Token(0);
@@ -96,8 +101,8 @@ impl Server {
         let mut buf = [0u8; 1600];
         let mut nonce = [0u8; 12];
         let add = [0u8; 8];
-        let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, secret);
-        let receiver = Crypto::from_shared_key(CryptoMethod::AES256, secret);
+        let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, &self.secret);
+        let receiver = Crypto::from_shared_key(CryptoMethod::AES256, &self.secret);
 
         loop {
             poll.poll(&mut events, None).expect("poll failed");

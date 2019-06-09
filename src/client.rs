@@ -21,6 +21,9 @@ pub struct Client {
     netmask: IpAddr,
     token: Token,
     dns: IpAddr,
+    secret: String,
+    host: IpAddr,
+    port: u16
 }
 
 
@@ -36,6 +39,9 @@ impl Client {
             netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
             token: 0,
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
+            secret: String::new(),
+            host: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
+            port: 0 as u16
         }
     }
 
@@ -49,6 +55,10 @@ impl Client {
         Ok(())
     }
 
+    fn parse_host(&mut self,host: &str) -> Result<(),Error>{
+        self.netmask = host.parse().map_err(|e| Error::Parse("failed to parse host from string",e))?;
+        Ok(())
+    }
 
     fn set_token(&mut self,token: Token) {
         self.token = token
@@ -70,10 +80,10 @@ impl Client {
         Ok(tun)
     }
 
-    pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr, secret: &str) -> Result<(Crypto,Crypto), Error> {
+    pub fn shakehand_udp(&mut self,socket: &UdpSocket, addr: &SocketAddr) -> Result<(Crypto,Crypto), Error> {
         let request_msg = boring::Message::Request {msg: "hello".to_string() };
-        let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, secret);
-        let receiver = Crypto::from_shared_key(CryptoMethod::AES256, secret);
+        let mut sender =  Crypto::from_shared_key(CryptoMethod::AES256, &self.secret);
+        let receiver = Crypto::from_shared_key(CryptoMethod::AES256, &self.secret);
         let mut nonce = [0u8; 12];
         let encoded_req_msg: Vec<u8> = serialize(&request_msg).unwrap();
         let mut encrypted_req_msg = encoded_req_msg.clone();
@@ -111,15 +121,15 @@ impl Client {
         unimplemented!()
     }
 
-    pub fn connect_udp(&mut self,host: &str,port: u16,securt: &str,default_route: bool) -> Result<(),Error> {
+    pub fn connect_udp(&mut self,default_route: bool) -> Result<(),Error> {
         info!("start connect server");
-        let remote_ip = resolve(host).unwrap();
-        let remote_addr = SocketAddr::new(remote_ip, port);
-        info!("remote addr and port is {}:{}",remote_ip,port);
+        let remote_ip = self.host;
+        let remote_addr = SocketAddr::new(remote_ip, self.port);
+        info!("remote addr and port is {}:{}",remote_ip,self.port);
 
         let local_addr: SocketAddr = "0.0.0.0:0".parse::<SocketAddr>().unwrap();
         let socket = UdpSocket::bind(&local_addr).unwrap();
-        let (mut sender,receiver) = self.shakehand_udp(&socket, &remote_addr, securt).unwrap();
+        let (mut sender,receiver) = self.shakehand_udp(&socket, &remote_addr).unwrap();
         info!("shakehand sucess token: {}, ip address: {}",self.token,self.ip.to_string());
         info!("start create tun device");
         let mut tun = self.create_tun().unwrap();
@@ -187,7 +197,7 @@ impl Client {
                             sent_len += sockfd.send_to(&encrypted_msg[sent_len..data_len], &remote_addr).unwrap();
                         }
 
-                    }
+                    },
                     _ => unreachable!()
                 }
             }
