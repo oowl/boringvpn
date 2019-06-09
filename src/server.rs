@@ -39,22 +39,30 @@ impl Server {
         }
     }
 
-    fn parse_ip(&mut self,ipaddr: &str) -> Result<(),Error>{
+    pub fn parse_ip(&mut self,ipaddr: &str) -> Result<(),Error>{
         self.ip = ipaddr.parse().map_err(|e| Error::Parse("failed to parse ipaddr from string",e))?;
         Ok(())
     }
 
-    fn parse_netmask(&mut self,netmask: &str) -> Result<(),Error>{
+    pub fn parse_netmask(&mut self,netmask: &str) -> Result<(),Error>{
         self.netmask = netmask.parse().map_err(|e| Error::Parse("failed to parse netmask from string",e))?;
         Ok(())
     }
 
-    fn parse_dns(&mut self,dns: &str) -> Result<(),Error>{
+    pub fn parse_dns(&mut self,dns: &str) -> Result<(),Error>{
         self.dns = dns.parse().map_err(|e| Error::Parse("failed to parse dns from string",e))?;
         Ok(())
     }
 
-    fn parse_host(&mut self,host: &str) -> Result<(),Error>{
+    pub fn parse_key(&mut self,key: &str) {
+        self.secret = key.to_string()
+    }
+
+    pub fn parse_port(&mut self,port: u16) {
+        self.port = port;
+    }
+
+    pub fn parse_host(&mut self,host: &str) -> Result<(),Error>{
         self.dns = host.parse().map_err(|e| Error::Parse("failed to parse dns from string",e))?;
         Ok(())
     }
