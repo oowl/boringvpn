@@ -76,7 +76,7 @@ impl Server {
         utils::set_dns(&self.dns.to_string()).expect("set dns failed");
         Ok(tun)
     }
-    pub fn server_udp(&mut self) {
+    pub fn server_udp(&mut self) -> Result<(),Error> {
         info!("start server");
         info!("server {}:{}",self.host.to_string(),self.port.to_string());
         info!("Enabling kernel's IPv4 forwarding.");
@@ -98,8 +98,8 @@ impl Server {
         let poll = mio::Poll::new().unwrap();
         const TUN_TOKEN: mio::Token = mio::Token(0);
         const SOCK_TOKEN: mio::Token = mio::Token(1);
-        poll.register(&sockfd, TUN_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).unwrap();
-        poll.register(&tunfd, SOCK_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).unwrap();
+        poll.register(&sockfd, SOCK_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).unwrap();
+        poll.register(&tunfd, TUN_TOKEN, mio::Ready::readable(), mio::PollOpt::level()).unwrap();
 
         let mut events = mio::Events::with_capacity(1024);
         let mut rng = thread_rng();
@@ -114,6 +114,7 @@ impl Server {
         let receiver = Crypto::from_shared_key(CryptoMethod::AES256, &self.secret);
 
         loop {
+            // available_ids.append(&mut client_info.prune());
             poll.poll(&mut events, None).expect("poll failed");
             for event in events.iter() {
                 match event.token() {
@@ -187,7 +188,9 @@ impl Server {
                     TUN_TOKEN => {
                         let len: usize = tun.read(&mut buf).unwrap();
                         let data = &buf[..len];
-                        let client_ip: Vec<u8> = data[16..19].to_vec();
+                        dbg!(data);
+                        let client_ip: Vec<u8> = data[16..20].to_vec();
+                        dbg!(&client_ip);
                         let client_ip = IpAddr::V4(Ipv4Addr::new(client_ip[0], client_ip[1], client_ip[2], client_ip[3]));
                         match client_info.get(&client_ip) {
                             None => warn!("Unknown data to ip {}.", client_ip.to_string()),
@@ -214,6 +217,7 @@ impl Server {
             }
 
         }
+        Ok(())
     }
 
 }

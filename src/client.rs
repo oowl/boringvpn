@@ -136,7 +136,7 @@ impl Client {
         unimplemented!()
     }
 
-    pub fn connect_udp(&mut self,default_route: bool) -> Result<(),Error> {
+    pub fn connect_udp(&mut self) -> Result<(),Error> {
         info!("start connect server");
         let remote_ip = self.host;
         let remote_addr = SocketAddr::new(remote_ip, self.port);
