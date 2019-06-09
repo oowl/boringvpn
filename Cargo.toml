@@ -15,6 +15,7 @@ dns-lookup = "*"
 mio = "*"
 rand ="*"
 transient-hashmap = "*"
+clap = "*"
 
 
 [build-dependencies]
