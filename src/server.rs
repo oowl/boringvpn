@@ -92,6 +92,7 @@ impl Server {
         info!("TUN device {} initialized. Internal IP: {} {}.",self.ip,self.netmask,tun.ifname());
 
         let addr = format!("0.0.0.0:{}", self.port.to_string()).parse().unwrap();
+        dbg!(addr);
         let sockfd = mio::net::UdpSocket::bind(&addr).unwrap();
         info!("Listening on: 0.0.0.0:{}.", self.port);
 
@@ -119,7 +120,9 @@ impl Server {
             for event in events.iter() {
                 match event.token() {
                     SOCK_TOKEN => {
+                        dbg!("收到socks");
                         let (len,address) = sockfd.recv_from(&mut buf).unwrap();
+                        dbg!(len);
                         let decrypted_buf_len = receiver.decrypt(&mut buf[..len], &nonce, &add).unwrap();
                         let msg: boring::Message = deserialize(&buf[..decrypted_buf_len]).unwrap();
                         match msg {
@@ -136,7 +139,8 @@ impl Server {
                                     ipaddr_oct[3] = client_id;
                                     let client_ip = Ipv4Addr::new(ipaddr_oct[0], ipaddr_oct[1], ipaddr_oct[2], ipaddr_oct[3]);
                                     let client_token: Token = rng.gen::<Token>();
-                                    client_info.insert(IpAddr::V4(client_ip), (client_token, addr));
+                                    dbg!(client_token);
+                                    client_info.insert(IpAddr::V4(client_ip), (client_token, address));
 
                                     info!("Got request from {}. Assigning IP address: {}.",
                                       addr,
@@ -174,6 +178,7 @@ impl Server {
                                                 ip,
                                                 t);
                                         } else {
+                                            dbg!("正确的数据");
                                             let data_len = data.len();
                                             let mut sent_len = 0;
                                             while sent_len < data_len {
@@ -184,11 +189,12 @@ impl Server {
                                 }
                             }
                         }
+                        dbg!("sock处理完成");
                     },
                     TUN_TOKEN => {
                         let len: usize = tun.read(&mut buf).unwrap();
                         let data = &buf[..len];
-                        dbg!(data);
+                        // dbg!(data);
                         let client_ip: Vec<u8> = data[16..20].to_vec();
                         dbg!(&client_ip);
                         let client_ip = IpAddr::V4(Ipv4Addr::new(client_ip[0], client_ip[1], client_ip[2], client_ip[3]));
@@ -207,6 +213,7 @@ impl Server {
                                 let data_len = sender.encrypt(&mut encrypted_msg, encoded_data.len(), &mut nonce, &add);
                                 let mut sent_len = 0;
                                 while sent_len < data_len {
+                                    dbg!("发送数据");
                                     sent_len += sockfd.send_to(&encrypted_msg[sent_len..data_len], &addr).unwrap();
                                     }
                                 }

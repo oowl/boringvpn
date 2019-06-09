@@ -59,7 +59,7 @@ impl Client {
     }
 
     pub fn parse_host(&mut self,host: &str) -> Result<(),Error>{
-        self.netmask = host.parse().map_err(|e| Error::Parse("failed to parse host from string",e))?;
+        self.host = host.parse().map_err(|e| Error::Parse("failed to parse host from string",e))?;
         Ok(())
     }
 
@@ -105,6 +105,7 @@ impl Client {
         encrypted_req_msg.resize(encrypted_req_msg.len() + sender.additional_bytes(), 0);
         let add = [0u8; 8];
         let mut size = sender.encrypt(&mut encrypted_req_msg, encoded_req_msg.len(), &mut nonce, &add);
+        dbg!(size);
 
         while size > 0 {
             let sent_bytes = socket.send_to(&encrypted_req_msg, addr).map_err(|e| Error::Shakehand("failed send handshake",e))?;
@@ -202,6 +203,7 @@ impl Client {
                             token: self.token,
                             data: data.to_vec()
                         };
+                        dbg!(&msg);
                         let encoded_data = serialize(&msg).unwrap();
                         let mut encrypted_msg = encoded_data.clone();
                         encrypted_msg.resize(encrypted_msg.len() + sender.additional_bytes(), 0);
