@@ -17,6 +17,7 @@ use crate::types::Error;
 
 type Token = u64;
 
+#[derive(Debug,Clone)]
 pub struct Server {
     ip: IpAddr,
     netmask: IpAddr,
@@ -32,7 +33,7 @@ impl Server {
             ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
             netmask: IpAddr::V4(Ipv4Addr::new(255, 255, 255, 0)),
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
-            host: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            host: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
             secret: String::new(),
             port: 0 as u16
         }

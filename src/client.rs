@@ -16,6 +16,7 @@ use crate::types::Error;
 
 type Token = u64;
 
+#[derive(Debug,Clone)]
 pub struct Client {
     ip: IpAddr,
     netmask: IpAddr,
@@ -23,7 +24,8 @@ pub struct Client {
     dns: IpAddr,
     secret: String,
     host: IpAddr,
-    port: u16
+    port: u16,
+    default_route: bool
 }
 
 
@@ -41,7 +43,8 @@ impl Client {
             dns: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
             secret: String::new(),
             host: IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)),
-            port: 0 as u16
+            port: 0 as u16,
+            default_route: false
         }
     }
 
@@ -55,9 +58,21 @@ impl Client {
         Ok(())
     }
 
-    fn parse_host(&mut self,host: &str) -> Result<(),Error>{
+    pub fn parse_host(&mut self,host: &str) -> Result<(),Error>{
         self.netmask = host.parse().map_err(|e| Error::Parse("failed to parse host from string",e))?;
         Ok(())
+    }
+
+    pub fn parse_key(&mut self,key: &str) {
+        self.secret = key.to_string()
+    }
+
+    pub fn parse_default_route(&mut self,default: bool) {
+        self.default_route = default;
+    }
+
+    pub fn parse_port(&mut self,port: u16) {
+        self.port = port;
     }
 
     fn set_token(&mut self,token: Token) {
