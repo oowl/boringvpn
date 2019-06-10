@@ -12,7 +12,8 @@ pub enum Error {
     File(&'static str, io::Error),
     Beacon(&'static str, io::Error),
     Shakehand(&'static str,io::Error),
-    Invaildmessage(&'static str)
+    Invaildmessage(&'static str),
+    Route(&'static str)
 }
 
 impl fmt::Display for Error {
@@ -26,7 +27,8 @@ impl fmt::Display for Error {
             Error::File(msg, ref err) => write!(formatter, "{}: {:?}", msg, err),
             Error::Beacon(msg, ref err) => write!(formatter, "{}: {:?}", msg, err),
             Error::Shakehand(msg,ref err) => write!(formatter, "{}: {:?}", msg, err),
-            Error::Invaildmessage(msg) => write!(formatter, "{}", msg)
+            Error::Invaildmessage(msg) => write!(formatter, "{}", msg),
+            Error::Route(msg) => write!(formatter, "{}", msg)
         }
     }
 }

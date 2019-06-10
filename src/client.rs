@@ -105,7 +105,6 @@ impl Client {
         encrypted_req_msg.resize(encrypted_req_msg.len() + sender.additional_bytes(), 0);
         let add = [0u8; 8];
         let mut size = sender.encrypt(&mut encrypted_req_msg, encoded_req_msg.len(), &mut nonce, &add);
-        dbg!(size);
 
         while size > 0 {
             let sent_bytes = socket.send_to(&encrypted_req_msg, addr).map_err(|e| Error::Shakehand("failed send handshake",e))?;
@@ -160,6 +159,18 @@ impl Client {
         let tunfd = mio::unix::EventedFd(&tun_rawfd);
         let sockfd = mio::net::UdpSocket::from_socket(socket).unwrap();
 
+
+        let mut ipaddr_oct = [0u8;4];
+        match self.ip {
+            IpAddr::V4(ipv4) => {
+                ipaddr_oct = ipv4.octets();
+            },
+            IpAddr::V6(ipv6) => {},
+        };
+        ipaddr_oct[3] = 1;
+        let client_ip = Ipv4Addr::new(ipaddr_oct[0], ipaddr_oct[1], ipaddr_oct[2], ipaddr_oct[3]);
+        let _gw  = utils::DefaultGateWay::create(&client_ip.to_string(), &remote_ip.to_string(),self.default_route).map_err(|e| Error::Route("failed to create route or exist"))?;
+
         info!("start polling...");
         const TUN_TOKEN: mio::Token = mio::Token(0);
         const SOCK_TOKEN: mio::Token = mio::Token(1);
@@ -203,7 +214,6 @@ impl Client {
                             token: self.token,
                             data: data.to_vec()
                         };
-                        dbg!(&msg);
                         let encoded_data = serialize(&msg).unwrap();
                         let mut encrypted_msg = encoded_data.clone();
                         encrypted_msg.resize(encrypted_msg.len() + sender.additional_bytes(), 0);

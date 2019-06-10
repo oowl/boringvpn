@@ -16,6 +16,7 @@ mio = "*"
 rand ="*"
 transient-hashmap = "*"
 clap = "*"
+env_logger = "*"
 
 
 [build-dependencies]

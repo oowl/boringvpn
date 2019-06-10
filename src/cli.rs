@@ -14,12 +14,12 @@ pub enum Args {
 }
 
 pub fn get_args() -> Result<Args,String> {
-    let matches = App::new("kytan: High Performance Peer-to-Peer VPN")
-                            .version("1.0")
+    let matches = App::new("boringvpn: so boring vpn power by rust")
+                            .version("0.1")
                             .subcommand(SubCommand::with_name("server")
                                         .about("server mode")
-                                        .version("1.3")
-                                        .author("Someone E. <someone_else@other.com>")
+                                        .version("0.1")
+                                        .author("Attenuation <ouyangjun1999@gmail.com>")
                                         .arg(Arg::with_name("bind")
                                             .short("l")
                                             .long("listen")
@@ -58,8 +58,8 @@ pub fn get_args() -> Result<Args,String> {
                             )
                             .subcommand(SubCommand::with_name("client")
                                         .about("client mode")
-                                        .version("1.3")
-                                        .author("Someone E. <someone_else@other.com>")
+                                        .version("0.1")
+                                        .author("Attenuation <ouyangjun1999@gmail.com>")
                                         .arg(Arg::with_name("server")
                                             .short("s")
                                             .long("server")

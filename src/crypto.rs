@@ -82,8 +82,6 @@ impl Crypto {
         // if rand::SystemRandom::new().fill(&mut nonce[1..]).is_err() {
         //     log::warn!("Randomizing nonce failed");
         // }
-        dbg!(&nonce);
-        dbg!(&key);
         let data = CryptoData { sealing_key, opening_key, nonce, key };
         match method {
             CryptoMethod::ChaCha20 => Crypto::ChaCha20Poly1305(data),

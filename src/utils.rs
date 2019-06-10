@@ -93,26 +93,52 @@ pub enum RouteType {
 pub struct DefaultGateWay {
     origin: String,
     remote: String,
+    default: bool
 }
 
 impl DefaultGateWay {
-    pub fn create(gateway: &str,remote: &str) -> DefaultGateWay {
-        let origin = get_default_gateway().unwrap();
+    pub fn create(gateway: &str,remote: &str,default: bool) -> Result<DefaultGateWay,String> {
+        let origin = get_default_gateway().expect("default no found");
         info!("Original default gateway: {}",origin);
-        add_route(RouteType::Host, remote, &origin).unwrap();
-        delete_default_gateway().unwrap();
-        set_default_gateway(gateway).unwrap();
-        DefaultGateWay {
-            origin: origin,
-            remote: String::from(remote)
+        add_route(RouteType::Host, remote, &origin).map_err(|err| err.to_string())?;
+        if default {
+            delete_default_gateway().map_err(|err| err.to_string())?;
+            set_default_gateway(gateway).map_err(|err| err.to_string())?;
         }
+        Ok(DefaultGateWay {
+            origin: origin,
+            remote: String::from(remote),
+            default: default
+        })
     }
 }
 
 impl Drop for DefaultGateWay {
     fn drop(&mut self) {
-        delete_default_gateway().unwrap();
-        set_default_gateway(&self.origin).unwrap();
+        if self.default {
+            delete_default_gateway().unwrap();
+            set_default_gateway(&self.origin).unwrap();
+        }
+        delete_route(RouteType::Host, &self.remote).unwrap();
+    }
+}
+pub struct HostRoute {
+    remote: String
+}
+
+impl HostRoute {
+    pub fn create(remote: &str) -> HostRoute {
+        let gateway = get_default_gateway().unwrap();
+        info!("default gateway: {}",gateway);
+        add_route(RouteType::Host, remote, &gateway).unwrap();
+        HostRoute {
+            remote: remote.to_string()
+        }
+    }
+}
+
+impl Drop for HostRoute {
+    fn drop(&mut self) {
         delete_route(RouteType::Host, &self.remote).unwrap();
     }
 }
